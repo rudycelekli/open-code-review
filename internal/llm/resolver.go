@@ -198,6 +198,14 @@ func finalizeResolvedEndpoint(source string, ep ResolvedEndpoint, env envOverrid
 			ep.ExtraHeaders = env.headers
 		} else {
 			for key, value := range env.headers {
+				// Header names are case-insensitive on the wire. Leaving a
+				// differently cased config key beside the env one would let map
+				// order decide which value each request sends.
+				for existing := range ep.ExtraHeaders {
+					if existing != key && strings.EqualFold(existing, key) {
+						delete(ep.ExtraHeaders, existing)
+					}
+				}
 				ep.ExtraHeaders[key] = value
 			}
 		}

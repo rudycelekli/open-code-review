@@ -1853,6 +1853,41 @@ func TestResolveEndpoint_EnvExtraHeadersMergedWithConfigFile(t *testing.T) {
 	}
 }
 
+func TestResolveEndpoint_EnvExtraHeaderOverridesConfigHeaderOfDifferentCase(t *testing.T) {
+	clearAllEnv(t)
+	t.Setenv("OCR_LLM_EXTRA_HEADERS", "x-org-id=org-from-env")
+
+	cfg := configFile{
+		Provider: "anthropic",
+		Providers: map[string]providerEntryConfig{
+			"anthropic": {
+				APIKey:       "sk-ant-test",
+				Model:        "claude-sonnet-4-6",
+				ExtraHeaders: map[string]string{"X-Org-ID": "org-from-config"},
+			},
+		},
+	}
+	data, _ := json.Marshal(cfg)
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(cfgPath, data, 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	ep, err := ResolveEndpoint(cfgPath)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var values []string
+	for key, value := range ep.ExtraHeaders {
+		if strings.EqualFold(key, "X-Org-ID") {
+			values = append(values, value)
+		}
+	}
+	if len(values) != 1 || values[0] != "org-from-env" {
+		t.Errorf("X-Org-ID values = %q, want only the env override %q", values, "org-from-env")
+	}
+}
+
 func TestResolveEndpoint_SessionKeyPlaceholderPreserved(t *testing.T) {
 	clearAllEnv(t)
 
