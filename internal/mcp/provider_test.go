@@ -243,3 +243,32 @@ func TestCollectToolDefs_Dedup(t *testing.T) {
 		t.Errorf("expected 1 deduped def, got %d", len(defs))
 	}
 }
+
+func TestCollectToolDefs_UsesSchemaOfRegisteredServer(t *testing.T) {
+	first := newTestClient("a", []*mcp.Tool{{
+		Name:        "search",
+		Description: "first server",
+		InputSchema: map[string]any{"properties": map[string]any{"query": map[string]any{"type": "string"}}},
+	}})
+	second := newTestClient("b", []*mcp.Tool{{
+		Name:        "search",
+		Description: "second server",
+		InputSchema: map[string]any{"properties": map[string]any{"pattern": map[string]any{"type": "string"}}},
+	}})
+	reg := tool.NewRegistry()
+	RegisterAll(reg, first, []string{"other"})
+	RegisterAll(reg, second, nil)
+
+	defs := CollectToolDefs([]*Client{first, second}, reg)
+
+	if len(defs) != 1 {
+		t.Fatalf("expected 1 def, got %d", len(defs))
+	}
+	if defs[0].Function.Description != "second server" {
+		t.Errorf("search is executed by server b but advertised with %q", defs[0].Function.Description)
+	}
+	props, _ := defs[0].Function.Parameters["properties"].(map[string]any)
+	if _, ok := props["pattern"]; !ok {
+		t.Errorf("expected server b's schema, got %v", defs[0].Function.Parameters)
+	}
+}

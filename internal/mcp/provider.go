@@ -96,6 +96,8 @@ func ToToolDef(t *mcp.Tool) llm.ToolDef {
 
 // CollectToolDefs gathers tool definitions from MCP clients, filtering out
 // tools that conflict with built-in tools or were not successfully registered.
+// A name published by several servers takes its definition from the server
+// that owns the registered provider, since every call is routed there.
 func CollectToolDefs(clients []*Client, reg *tool.Registry) []llm.ToolDef {
 	var defs []llm.ToolDef
 	seen := make(map[string]struct{})
@@ -104,7 +106,11 @@ func CollectToolDefs(clients []*Client, reg *tool.Registry) []llm.ToolDef {
 			if tool.IsReserved(t.Name) {
 				continue
 			}
-			if _, exists := reg.Get(t.Name); !exists {
+			registered, exists := reg.Get(t.Name)
+			if !exists {
+				continue
+			}
+			if p, ok := registered.(*Provider); ok && p.client != c {
 				continue
 			}
 			if _, dup := seen[t.Name]; dup {
